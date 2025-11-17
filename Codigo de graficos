@@ -1,0 +1,219 @@
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Download, TrendingUp, Clock, MapPin } from 'lucide-react';
+
+const MIOAnalysisSystem = () => {
+  const [loading, setLoading] = useState(true);
+  const [statistics, setStatistics] = useState(null);
+  const [hourlyData, setHourlyData] = useState([]);
+  const [stationData, setStationData] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  const stations = [
+    'Terminal Cali', 'Universidades', 'Menga', 'Refugio', 'Calima',
+    'Izo', 'Capri', 'Primitivo Crespo', 'Belalcázar', 'Torre de Cali'
+  ];
+
+  // Generar 1 millón de datos
+  const generateData = () => {
+    setLoading(true);
+    const data = [];
+    const numRecords = 1000000;
+    
+    for (let i = 0; i < numRecords; i++) {
+      const hour = Math.floor(Math.random() * 24);
+      const station = stations[Math.floor(Math.random() * stations.length)];
+      const totalCupos = 50;
+      
+      // Ocupación según hora
+      let occupancyRate;
+      if ((hour >= 6 && hour <= 9) || (hour >= 17 && hour <= 20)) {
+        occupancyRate = 0.7 + Math.random() * 0.3;
+      } else if (hour >= 0 && hour <= 5) {
+        occupancyRate = Math.random() * 0.2;
+      } else {
+        occupancyRate = 0.3 + Math.random() * 0.4;
+      }
+      
+      const cuposDisponibles = Math.floor(totalCupos * (1 - occupancyRate));
+      
+      data.push({
+        station,
+        hour,
+        cuposDisponibles,
+        totalCupos,
+        ocupacion: occupancyRate * 100
+      });
+    }
+    
+    setTotalRecords(numRecords);
+    processData(data);
+    setLoading(false);
+  };
+
+  // Calcular estadísticas
+  const processData = (data) => {
+    const avgOccupancy = data.reduce((sum, d) => sum + d.ocupacion, 0) / data.length;
+    
+    // Agrupar por hora
+    const hourlyStats = {};
+    for (let h = 0; h < 24; h++) hourlyStats[h] = [];
+    data.forEach(d => hourlyStats[d.hour].push(d.ocupacion));
+    
+    const hourlyAvg = Object.keys(hourlyStats).map(h => ({
+      hora: `${h}:00`,
+      ocupacion: parseFloat((hourlyStats[h].reduce((a, b) => a + b, 0) / hourlyStats[h].length).toFixed(2))
+    }));
+    
+    // Agrupar por estación
+    const stationStats = {};
+    stations.forEach(s => stationStats[s] = []);
+    data.forEach(d => stationStats[d.station].push(d.ocupacion));
+    
+    const stationAvg = stations.map(s => ({
+      estacion: s,
+      ocupacion: parseFloat((stationStats[s].reduce((a, b) => a + b, 0) / stationStats[s].length).toFixed(2))
+    }));
+    
+    const peakHour = hourlyAvg.reduce((max, curr) => 
+      curr.ocupacion > max.ocupacion ? curr : max
+    );
+    
+    setStatistics({
+      avgOccupancy: avgOccupancy.toFixed(2),
+      peakHour: peakHour.hora,
+      peakOccupancy: peakHour.ocupacion
+    });
+    
+    setHourlyData(hourlyAvg);
+    setStationData(stationAvg);
+  };
+
+  // Exportar datos
+  const exportToCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + "Estacion,Hora,CuposDisponibles,TotalCupos,Ocupacion\n"
+      + Array.from({ length: 1000 }, (_, i) => {
+          const station = stations[i % stations.length];
+          const hour = Math.floor(Math.random() * 24);
+          const ocupacion = (Math.random() * 100).toFixed(2);
+          const cupos = Math.floor(50 * (1 - ocupacion/100));
+          return `${station},${hour},${cupos},50,${ocupacion}`;
+        }).join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "datos_mio.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    generateData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-xl font-bold text-gray-800">Generando 1 millón de registros...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-800">
+              Sistema de Análisis MIO - Etapa 3
+            </h1>
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              <Download className="w-5 h-5" />
+              Exportar CSV
+            </button>
+          </div>
+          <p className="text-green-700 font-semibold">
+            ✓ {totalRecords.toLocaleString()} registros procesados
+          </p>
+        </div>
+
+        {/* Estadísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="w-8 h-8 text-blue-600" />
+              <div>
+                <p className="text-gray-600 text-sm">Ocupación Promedio</p>
+                <p className="text-2xl font-bold">{statistics?.avgOccupancy}%</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center gap-3">
+              <Clock className="w-8 h-8 text-orange-600" />
+              <div>
+                <p className="text-gray-600 text-sm">Hora Pico</p>
+                <p className="text-2xl font-bold">{statistics?.peakHour}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center gap-3">
+              <MapPin className="w-8 h-8 text-green-600" />
+              <div>
+                <p className="text-gray-600 text-sm">Ocupación Pico</p>
+                <p className="text-2xl font-bold">{statistics?.peakOccupancy}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfico por hora */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Ocupación por Hora</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={hourlyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="hora" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="ocupacion" stroke="#2563eb" strokeWidth={2} name="% Ocupación" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Gráfico por estación */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Ocupación por Estación</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={stationData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="estacion" angle={-45} textAnchor="end" height={100} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="ocupacion" fill="#10b981" name="% Ocupación" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default MIOAnalysisSystem;
